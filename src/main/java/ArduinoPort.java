@@ -1,0 +1,162 @@
+
+import gnu.io.CommPortIdentifier;
+import gnu.io.SerialPort;
+import gnu.io.SerialPortEvent;
+import gnu.io.SerialPortEventListener;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Enumeration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * @author mmarashan
+ */
+
+public class ArduinoPort implements SerialPortEventListener {
+
+	private String state = "SLEEP";
+	SerialPort serialPort;
+	private static final String PORT_NAMES[] = {/* "/dev/tty.usbserial-A9007UX1", // Mac
+			"/dev/ttyUSB0", // Linux
+			"/dev/arduino", // Use UDEV rules to get this thing*/
+			"COM16"/*, "COM4","COM11","COM9","COM8","COM7","COM6","COM5"*/};
+
+	private InputStream input;
+
+	private OutputStream output;
+
+	private int secondCommaPosition; // текущая позиция следующей запятой
+	private volatile String data = new String(); // данные на входе COM - порта
+
+	/** Время блокировки до открытия порта (мсек) */
+	private static final int TIME_OUT = 100;
+
+	/** Скорость передачи бит/сек с COM port. 38400 рабочая скорость!!! java не успевает обрабатывать*/
+	private static final int DATA_RATE = 9600;
+
+	
+	/**Конструктор*/
+	public ArduinoPort(){
+	}
+
+	//regexp для парсинга
+	Pattern pattern = Pattern.compile("(\\d{1,2}):([-+]?[0-9]*\\.?[0-9]+)");
+
+	public void initialize() {
+		CommPortIdentifier portId = null;
+		Enumeration portEnum = CommPortIdentifier.getPortIdentifiers();
+
+		while (portEnum.hasMoreElements()) {
+			CommPortIdentifier currPortId = (CommPortIdentifier) portEnum.nextElement();
+			for (String portName : PORT_NAMES) {
+				if (currPortId.getName().equals(portName)) {
+					portId = currPortId;
+					break;
+				}
+			}
+		}
+
+		if (portId == null) {
+			System.out.println("Could not find COM port.");
+			return;
+		}
+
+		try {
+			// открыть serial port, и использовать для appName.
+			serialPort = (SerialPort) portId.open(this.getClass().getName(), TIME_OUT);
+
+			// установить параметры порта
+			serialPort.setSerialPortParams(DATA_RATE, SerialPort.DATABITS_8, SerialPort.STOPBITS_1,
+					SerialPort.PARITY_NONE);
+
+			// открываем входящий и исходящий потоки
+			input = serialPort.getInputStream();
+			output = serialPort.getOutputStream();
+
+			// добавить слушателей событий
+			serialPort.addEventListener(this);
+			serialPort.notifyOnDataAvailable(true);
+
+			state = "RUN";
+		} catch (Exception e) {
+			System.err.println(e.toString());
+		}
+	}
+
+	/**
+	 * Вызывается при остановке порта. Это предотвратит блокировку порта 
+	 */
+	public synchronized void close() {
+		if (state == "RUN"){
+			if (serialPort != null) {
+				serialPort.removeEventListener();
+				serialPort.close();
+				state = "SLEEP";
+			}
+		}
+	}
+
+	/**
+	 * Считывание событий на последовательном порту. Считывание информации и
+	 * распечатка.
+	 */
+	public synchronized void serialEvent(SerialPortEvent oEvent) {
+		if (oEvent.getEventType() == SerialPortEvent.DATA_AVAILABLE) {
+			try {
+				int available = input.available();
+				byte chunk[] = new byte[input.available()];
+				input.read(chunk, 0, available);
+
+				addRation(new String(chunk));
+
+			} catch (Exception e) {
+				System.err.println(e.toString());
+				close();
+			}
+		}
+	}
+
+	public void sendSingleByte(byte myByte){
+		try {
+			output.write(myByte);
+			output.flush();
+		} catch (Exception e) {
+			System.err.println(e.toString());
+		}
+	}
+
+	/* добавить порцию в строку data */
+	public synchronized void addRation(String input) {
+		data += input;
+		secondCommaPosition = 0;
+		String key;
+		String value;
+		try {
+			if (data.indexOf(',') > 0) {
+				secondCommaPosition = data.indexOf(',');
+
+				value = data.substring(secondCommaPosition-1);
+				System.out.println(value);
+				data = data.substring(secondCommaPosition+1);
+
+
+				Matcher matcher = pattern.matcher(data.substring(0, secondCommaPosition));
+				if (matcher.find()) {
+					lastSensorNum = new Integer(matcher.group(1));
+					if (lastSensorNum < this.sensorsCount) { // хз почему при пустом сигнале значение именно 100002.3
+						lastPressure = new Double(matcher.group(2));
+						addMeasureToQueue(lastSensorNum, lastPressure);
+					}
+				}
+				data = data.substring(secondCommaPosition+1);
+			}
+		} catch (Exception e) {
+			System.out.println(
+					e.toString() + " newCursorBegin,  data.length : " + secondCommaPosition + ",  " + data.length());
+		}
+
+	}
+
+}
