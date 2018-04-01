@@ -14,7 +14,22 @@
             <version>3.8.1</version>
             <scope>test</scope>
         </dependency>
+<dependency>
+<groupId>com.google.protobuf</groupId>
+<artifactId>protobuf-java</artifactId>
+<version>3.5.1</version>
+</dependency>
 
+<dependency>
+<groupId>io.grpc</groupId>
+<artifactId>grpc-protobuf</artifactId>
+<version>1.8.0</version>
+</dependency>
+<dependency>
+<groupId>org.junit.jupiter</groupId>
+<artifactId>junit-jupiter-api</artifactId>
+<version>RELEASE</version>
+</dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
@@ -24,6 +39,22 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>3.12</version>
+        </dependency>
+
+        <dependency>
+          <groupId>io.grpc</groupId>
+          <artifactId>grpc-netty</artifactId>
+          <version>1.11.0</version>
+        </dependency>
+        <dependency>
+          <groupId>io.grpc</groupId>
+          <artifactId>grpc-protobuf</artifactId>
+          <version>1.11.0</version>
+        </dependency>
+        <dependency>
+          <groupId>io.grpc</groupId>
+          <artifactId>grpc-stub</artifactId>
+          <version>1.11.0</version>
         </dependency>
 
     </dependencies>

@@ -3,13 +3,13 @@ import gnu.io.CommPortIdentifier;
 import gnu.io.SerialPort;
 import gnu.io.SerialPortEvent;
 import gnu.io.SerialPortEventListener;
+import openFire.security.monitoring.Sender;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Enumeration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /**
  * @author mmarashan
  */
@@ -18,10 +18,10 @@ public class ArduinoPort implements SerialPortEventListener {
 
 	private String state = "SLEEP";
 	SerialPort serialPort;
-	private static final String PORT_NAMES[] = {/* "/dev/tty.usbserial-A9007UX1", // Mac
-			"/dev/ttyUSB0", // Linux
-			"/dev/arduino", // Use UDEV rules to get this thing*/
-			"COM16"/*, "COM4","COM11","COM9","COM8","COM7","COM6","COM5"*/};
+	private static final String PORT_NAMES[] = {/* "/dev/tty.usbserial-A9007UX1", // Mac*/
+			"/dev/ttyUSB0", "/dev/ttyACM0" // Linux
+			/*"/dev/arduino", // Use UDEV rules to get this thing*/
+			/*"COM16", "COM4","COM11","COM9","COM8","COM7","COM6","COM5"*/};
 
 	private InputStream input;
 
@@ -35,14 +35,13 @@ public class ArduinoPort implements SerialPortEventListener {
 
 	/** Скорость передачи бит/сек с COM port. 38400 рабочая скорость!!! java не успевает обрабатывать*/
 	private static final int DATA_RATE = 9600;
-
+    private static Sender blockChainSender = new Sender("192.168.1.227", 50051);
 	
 	/**Конструктор*/
 	public ArduinoPort(){
 	}
-
-	//regexp для парсинга
-	Pattern pattern = Pattern.compile("(\\d{1,2}):([-+]?[0-9]*\\.?[0-9]+)");
+    //regexp для парсинга
+	Pattern pattern = Pattern.compile("(\\w+):(\\d+)");
 
 	public void initialize() {
 		CommPortIdentifier portId = null;
@@ -137,18 +136,13 @@ public class ArduinoPort implements SerialPortEventListener {
 			if (data.indexOf(',') > 0) {
 				secondCommaPosition = data.indexOf(',');
 
-				value = data.substring(secondCommaPosition-1);
-				System.out.println(value);
-				data = data.substring(secondCommaPosition+1);
-
-
 				Matcher matcher = pattern.matcher(data.substring(0, secondCommaPosition));
 				if (matcher.find()) {
-					lastSensorNum = new Integer(matcher.group(1));
-					if (lastSensorNum < this.sensorsCount) { // хз почему при пустом сигнале значение именно 100002.3
-						lastPressure = new Double(matcher.group(2));
-						addMeasureToQueue(lastSensorNum, lastPressure);
-					}
+					key = new String(matcher.group(1));
+					value = new String(matcher.group(2));
+					if (key.equals("val")) { //печатаем только значения, пока без id
+                        sendInBlockchain(value);
+                    }
 				}
 				data = data.substring(secondCommaPosition+1);
 			}
@@ -158,5 +152,21 @@ public class ArduinoPort implements SerialPortEventListener {
 		}
 
 	}
+
+
+	public static void sendInBlockchain(String value) {
+        try {
+            blockChainSender.sendSensorUpdate("Smoke", value);
+            System.out.println("success_send" + " : "+value);
+        } finally {
+            try {
+                if (blockChainSender != null) {
+                    blockChainSender.shutdown();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
 }
